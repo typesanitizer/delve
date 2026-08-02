@@ -136,7 +136,10 @@ type _DEBUG_EVENT struct {
 	U              [160]byte
 }
 
-//sys	_NtQueryInformationThread(threadHandle syscall.Handle, infoclass int32, info uintptr, infolen uint32, retlen *uint32) (status _NTSTATUS) = ntdll.NtQueryInformationThread
+// Keep info pointer-typed until the direct syscall. Converting a stack pointer
+// to uintptr before entering a split wrapper can leave a stale address if the
+// goroutine stack grows and moves while the wrapper is active.
+//sys	_NtQueryInformationThread(threadHandle syscall.Handle, infoclass int32, info *_THREAD_BASIC_INFORMATION, infolen uint32, retlen *uint32) (status _NTSTATUS) = ntdll.NtQueryInformationThread
 //sys	_GetThreadContext(thread syscall.Handle, context *_CONTEXT) (err error) = kernel32.GetThreadContext
 //sys	_SetThreadContext(thread syscall.Handle, context *_CONTEXT) (err error) = kernel32.SetThreadContext
 //sys	_SuspendThread(threadid syscall.Handle) (prevsuspcount uint32, err error) [failretval==0xffffffff] = kernel32.SuspendThread
