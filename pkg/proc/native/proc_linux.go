@@ -228,6 +228,40 @@ func isProcDir(name string) bool {
 	return true
 }
 
+const processForkNoExec = 0x40 // PF_FORKNOEXEC in include/linux/sched.h
+
+// processHasExecuted reports whether pid has executed since it was forked.
+func processHasExecuted(pid int) (bool, error) {
+	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return false, err
+	}
+
+	// The comm field is parenthesized and may itself contain spaces or ')', so
+	// find its closing delimiter before splitting the remaining fields.
+	endComm := bytes.LastIndexByte(stat, ')')
+	if endComm < 0 {
+		return false, errors.New("malformed process stat")
+	}
+	fields := bytes.Fields(stat[endComm+1:])
+	// fields starts at field 3 (state), making flags field 9 index 6 here.
+	if len(fields) <= 6 {
+		return false, errors.New("malformed process stat")
+	}
+
+	// proc_pid_stat(5) documents the field used below as:
+	//
+	//  (9) flags %u
+	//      The kernel flags word of the process. For bit meanings, see the
+	//      PF_* defines in the Linux kernel source file include/linux/sched.h.
+	//      Details depend on the kernel version.
+	flags, err := strconv.ParseUint(string(fields[6]), 10, 64)
+	if err != nil {
+		return false, err
+	}
+	return flags&processForkNoExec == 0, nil
+}
+
 func waitForSearchProcess(pfx string, seen map[int]struct{}) (int, error) {
 	log := logflags.DebuggerLogger()
 	des, err := os.ReadDir("/proc")
@@ -247,7 +281,7 @@ func waitForSearchProcess(pfx string, seen map[int]struct{}) (int, error) {
 		if _, isseen := seen[pid]; isseen {
 			continue
 		}
-		seen[pid] = struct{}{}
+		hasExecuted, statErr := processHasExecuted(pid)
 		buf, err := os.ReadFile(filepath.Join("/proc", name, "cmdline"))
 		if err != nil {
 			// probably we just don't have permissions
@@ -261,6 +295,9 @@ func waitForSearchProcess(pfx string, seen map[int]struct{}) (int, error) {
 		log.Debugf("waitfor: new process %q", string(buf))
 		if strings.HasPrefix(string(buf), pfx) {
 			return pid, nil
+		}
+		if statErr == nil && hasExecuted {
+			seen[pid] = struct{}{}
 		}
 	}
 	return 0, nil

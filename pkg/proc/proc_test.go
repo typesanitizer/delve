@@ -5765,7 +5765,6 @@ func (fixtureState *waitForFixture) cleanup() {
 
 func TestWaitFor(t *testing.T) {
 	skipOn(t, "waitfor implementation is delegated to debugserver", "darwin")
-	skipOn(t, "flaky", "freebsd")
 
 	fixtureState := testWaitForSetup(t)
 	t.Cleanup(fixtureState.cleanup)
@@ -5779,7 +5778,6 @@ func TestWaitFor(t *testing.T) {
 }
 
 func TestWaitForAttach(t *testing.T) {
-	skipOn(t, "flaky", "freebsd")
 	if testBackend == "lldb" && runtime.GOOS == "linux" {
 		bs, _ := os.ReadFile("/proc/sys/kernel/yama/ptrace_scope")
 		if bs == nil || strings.TrimSpace(string(bs)) != "0" {
